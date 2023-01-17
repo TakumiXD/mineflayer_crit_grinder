@@ -15,8 +15,7 @@ const settings = {
 
 const bot = mineflayer.createBot(settings);
 const ENTITIES_TO_HIT = ["animal", "hostile"]; // The entities the bot should hit
-const NUM_OF_TICKS_JUMP = 18 // The number of in-game ticks to complete a jump
-const NUM_OF_TICKS_CRIT_AFTER_JUMP = 8;
+const NUM_OF_TICKS_JUMP = 25 // The number of in-game ticks to complete a jump
 const GRIND_RADIUS = 3.5 // The hit radius of the bot
 const JUMP_FALLING_VELOCITY = -0.1 // The y velocity of the bot when it is falling from a jump
 // The durability in percentage in which the bot will stop grinding and chat a warning message
@@ -33,55 +32,50 @@ const offset = {
 }
 
 let botIsGrinding = false;
-let onCooldown = false; // jump cooldown
 let weaponManager = null;
 
 function stopGrind() {
     botIsGrinding = false;
 }
 
-async function critGrind() {
-    if (botIsGrinding) {
-        return;
-    }
-    bot.on("move", () => {
-        if ((bot.entity.velocity.y < JUMP_FALLING_VELOCITY) && (!onCooldown)) {
-            let target = bot.nearestEntity(entity => ENTITIES_TO_HIT.includes(entity.type));
-            bot.attack(target);
-            weaponManager.updateCurrentWeapon(bot.heldItem);
-            checkDurability();
-            // account for the small time between jumps
-            onCooldown = true;
-        }
-    });
+async function startGrind() {
+    if (botIsGrinding) return;
 
     botIsGrinding = true;
+
     while (botIsGrinding) {
-        // jump when a mob is detected, which calls the bot.on("move")
-        let targetDetected = bot.nearestEntity(entity => ENTITIES_TO_HIT.includes(entity.type));
-        if (targetDetected && (bot.entity.position.distanceTo(targetDetected.position) < GRIND_RADIUS)) {
-            await jump();
-        }
-        else {
-            await bot.waitForTicks(NUM_OF_TICKS_JUMP);
-        }
+        await critGrind();
     }
 }
 
-// --- Makes the bot jump
-async function jump() {
-    bot.setControlState("jump", true);
-    bot.setControlState("jump", false);
-    await bot.waitForTicks(NUM_OF_TICKS_CRIT_AFTER_JUMP);
-    onCooldown = true;
-    await bot.waitForTicks(NUM_OF_TICKS_JUMP - NUM_OF_TICKS_CRIT_AFTER_JUMP);
-    onCooldown = false;
+async function critGrind() {
+    // jump when a mob is detected
+    const targetDetected = bot.nearestEntity(entity => ENTITIES_TO_HIT.includes(entity.type));
+    if (targetDetected && (bot.entity.position.distanceTo(targetDetected.position) < GRIND_RADIUS)) {
+        bot.setControlState("jump", true);
+        bot.setControlState("jump", false);
+        bot.on("move", attackIfFalling);
+    }
+
+    // called when the bot detects a target and is falling
+    async function attackIfFalling() {
+        if ((bot.entity.velocity.y < JUMP_FALLING_VELOCITY)) {
+            bot.removeListener("move", attackIfFalling);
+            const target = bot.nearestEntity(entity => ENTITIES_TO_HIT.includes(entity.type));
+            bot.attack(target);
+            weaponManager.updateCurrentWeapon(bot.heldItem);
+            checkDurability();
+        }
+    }
+
+    await bot.waitForTicks(NUM_OF_TICKS_JUMP);
 }
 
 // --- Make the bot equip a weapon if the bot only has one weapon in its inventory
 async function equipWeapon() {
-    let botItems = bot.inventory.items(); 
+    const botItems = bot.inventory.items(); 
     weaponManager.setWeapon(botItems);
+
     if (weaponManager.getCurrentWeapon() != null) {
         await bot.equip(weaponManager.getCurrentWeapon(), "hand");
         return true;
@@ -104,7 +98,7 @@ function checkDurability() {
 
 async function goto(x, y, z) {
     try {
-        let goal = new GoalBlock(x, y, z);
+        const goal = new GoalBlock(x, y, z);
         await bot.pathfinder.goto(goal);
         return true;
     } catch(e) {
@@ -127,8 +121,8 @@ bot.once('spawn', () => {
     console.log(`${BOT_USERNAME} spawned`);
     bot.loadPlugin(pathfinder);
     weaponManager = new WeaponManager(bot.version);
-    let mcData = require("minecraft-data")(bot.version);
-    let movements = new Movements(bot, mcData);
+    const mcData = require("minecraft-data")(bot.version);
+    const movements = new Movements(bot, mcData);
     bot.pathfinder.setMovements(movements);
     movements.canDig = false;
 });
@@ -156,7 +150,7 @@ async function onFace(tokens) {
 
 async function onStart() {
     if (!await equipWeapon()) return;
-    await critGrind();
+    await startGrind();
 }
 
 async function onGoto(tokens) {

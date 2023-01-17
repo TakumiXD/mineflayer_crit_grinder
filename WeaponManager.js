@@ -13,8 +13,8 @@ class WeaponManager {
     }
 
     getCurrentWeaponDurability() {
-        let usedDurability = this.currentWeapon.durabilityUsed;
-        let maxDurability = this.mcData.itemsByName[this.currentWeapon.name].maxDurability;
+        const usedDurability = this.currentWeapon.durabilityUsed;
+        const maxDurability = this.mcData.itemsByName[this.currentWeapon.name].maxDurability;
         return (maxDurability - usedDurability) / parseFloat(maxDurability)
     }
 
@@ -42,9 +42,6 @@ class WeaponManager {
             this.currentWeapon = null;
         }
         else {
-            // let weaponName = weapons[0].name;
-            // let weapon = (this.mcData).itemsByName[weaponName].id;
-            // this.currentWeapon = weapon;
             this.currentWeapon = weapons[0];
         }
     }
