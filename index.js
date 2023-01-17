@@ -5,7 +5,7 @@ const vec3 = require('vec3')
 const WeaponManager = require('./WeaponManager');
 
 // --- bot server and login information
-const PORT_NUMBER = 57636; // CHANGEME the port number of minecraft server
+const PORT_NUMBER = 57183; // CHANGEME the port number of minecraft server
 const BOT_USERNAME = "Crit_Grinder"; // CHANGEME the in game name of the bot
 const settings = {
 	host: "localhost",
@@ -16,11 +16,11 @@ const settings = {
 const bot = mineflayer.createBot(settings);
 const ENTITIES_TO_HIT = ["animal", "hostile"]; // The entities the bot should hit
 const NUM_OF_TICKS_JUMP = 18 // The number of in-game ticks to complete a jump
-const NUM_OF_TICKS_CRIT_AFTER_JUMP = 8
+const NUM_OF_TICKS_CRIT_AFTER_JUMP = 8;
 const GRIND_RADIUS = 3.5 // The hit radius of the bot
 const JUMP_FALLING_VELOCITY = -0.1 // The y velocity of the bot when it is falling from a jump
 // The durability in percentage in which the bot will stop grinding and chat a warning message
-const STOP_DURABILITY = 0.05 
+const STOP_DURABILITY = 0.05 ;
 const offset = {
     N: [0, 0, -1],
     S: [0, 0, 1],
@@ -32,10 +32,9 @@ const offset = {
     SE: [1, 0, 1]
 }
 
-var grindPosition = null;
-var botIsGrinding = false;
-var onCooldown = false; // jump cooldown
-var weaponManager = null;
+let botIsGrinding = false;
+let onCooldown = false; // jump cooldown
+let weaponManager = null;
 
 function stopGrind() {
     botIsGrinding = false;
@@ -43,15 +42,10 @@ function stopGrind() {
 
 async function critGrind() {
     if (botIsGrinding) {
-        return
-    }
-    if (!grindPosition) {
-        bot.chat("Failed, you need to assign me a spot to grind");
-        console.log("critGrind() failed becayse grindPosition was not set");
+        return;
     }
     bot.on("move", () => {
-        if ((bot.entity.position.y > grindPosition.y) && 
-            (bot.entity.velocity.y < JUMP_FALLING_VELOCITY) && (!onCooldown)) {
+        if ((bot.entity.velocity.y < JUMP_FALLING_VELOCITY) && (!onCooldown)) {
             let target = bot.nearestEntity(entity => ENTITIES_TO_HIT.includes(entity.type));
             bot.attack(target);
             weaponManager.updateCurrentWeapon(bot.heldItem);
@@ -65,7 +59,7 @@ async function critGrind() {
     while (botIsGrinding) {
         // jump when a mob is detected, which calls the bot.on("move")
         let targetDetected = bot.nearestEntity(entity => ENTITIES_TO_HIT.includes(entity.type));
-        if (targetDetected && (grindPosition.distanceTo(targetDetected.position) < GRIND_RADIUS)) {
+        if (targetDetected && (bot.entity.position.distanceTo(targetDetected.position) < GRIND_RADIUS)) {
             await jump();
         }
         else {
@@ -82,11 +76,6 @@ async function jump() {
     onCooldown = true;
     await bot.waitForTicks(NUM_OF_TICKS_JUMP - NUM_OF_TICKS_CRIT_AFTER_JUMP);
     onCooldown = false;
-}
-
-async function setGrindPosition() {
-    if (botIsGrinding) return;
-    grindPosition = bot.entity.position;
 }
 
 // --- Make the bot equip a weapon if the bot only has one weapon in its inventory
@@ -113,7 +102,7 @@ function checkDurability() {
     }
 }
 
-async function goToCoordinates(x, y, z) {
+async function goto(x, y, z) {
     try {
         let goal = new GoalBlock(x, y, z);
         await bot.pathfinder.goto(goal);
@@ -127,11 +116,9 @@ async function goToCoordinates(x, y, z) {
 async function faceDirection(direction) {
     try {
         botPosition = bot.entity.position;
-        console.log(direction);
         await bot.lookAt(botPosition.offset(...offset[direction]).offset(0, 1.5, 0));
     } catch(e) {
-        console.log(e);
-        console.log("Invalid direction entered");
+        console.log("faceDirection() failed, invalid direction entered");
     }
 }
 
@@ -161,32 +148,44 @@ bot.on("error", err => {
     stopGrind();
 });
 
+async function onFace(tokens) {
+    if (tokens.length == 1) {
+        await faceDirection(tokens[0]);
+    }
+}
+
+async function onStart() {
+    if (!await equipWeapon()) return;
+    await critGrind();
+}
+
+async function onGoto(tokens) {
+    if (tokens.length != 3) return; 
+    await goto(tokens[0], tokens[1], tokens[2]);
+}
+
+function onStop() {
+    stopGrind();
+}
+
 // --- bot command listener
 bot.on("chat", async (username, message) => {
-	if (username == BOT_USERNAME) return;
+	if ((username == BOT_USERNAME) || !message.startsWith("critGrind")) return;
 
-	let tokens = message.split(' ');
+	const tokens = message.split(' ').slice(1);
 
-    if (tokens[0] == "critGrind") {
-        switch(tokens[1]) {
-            case "face":
-                if (tokens.length == 3) {
-                    await faceDirection(tokens[2]);
-                }
-                break;
-            case "start":
-                await critGrind();
-                break;
-            case "spot":
-                if (!await equipWeapon()) return;
-                if (tokens.length >= 5) {
-                    await goToCoordinates(tokens[2], tokens[3], tokens[4]);
-                }
-                await setGrindPosition();
-                break;
-            case "stop":
-                stopGrind();
-                break;
-        }
+    switch(tokens[0]) {
+        case "face":
+            await onFace(tokens.slice(1));
+            break;
+        case "start":
+            await onStart();
+            break;
+        case "goto":
+            await onGoto(tokens.slice(1));
+            break;
+        case "stop":
+            onStop();
+            break;
     }
 });
