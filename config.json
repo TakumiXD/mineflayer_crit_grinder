@@ -1,0 +1,13 @@
+{
+    "settings": {
+        "portNumber": "57183",
+        "username": "Crit_Grinder",
+        "version": "1.19",
+        "entitiesToGrind": [
+            "animal", 
+            "hostile"
+        ],
+        "numOfTicksBetweenJumps": "15",
+        "durabilityToStopGrinding": "0.05"
+    }
+}

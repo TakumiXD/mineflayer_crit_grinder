@@ -1,6 +1,6 @@
 class WeaponManager {
-    constructor(version) {
-        this.mcData = require("minecraft-data")(version);
+    constructor(mcData) {
+        this.mcData = mcData;
         this.currentWeapon = null;
     }
 
@@ -27,17 +27,20 @@ class WeaponManager {
     // --- Given list of items returns a list of weapons within original list
     getWeapons(botItems) {
         const res = []
+
         for (let i = 0; i < botItems.length; ++i) {
             if (this.isWeapon(botItems[i].name)) {
                 res.push(botItems[i]);
             }
         }
+
         return res
     }
 
     // --- Given a list of items, if there is only one weapon set it to this.currentWeapon
     setWeapon(botItems) {
-        let weapons = this.getWeapons(botItems);
+        const weapons = this.getWeapons(botItems);
+
         if ((weapons.length == 0) || (weapons.length > 1)){
             this.currentWeapon = null;
         }
